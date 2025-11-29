@@ -15,6 +15,7 @@ import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.TriggerSyncUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.usecase.DeleteNoteUseCase
+import ucne.edu.notablelists.domain.notes.usecase.DeleteRemoteNoteUseCase
 import ucne.edu.notablelists.domain.notes.usecase.GetNoteUseCase
 import ucne.edu.notablelists.domain.notes.usecase.PostNoteUseCase
 import ucne.edu.notablelists.domain.notes.usecase.PutNoteUseCase
@@ -28,6 +29,7 @@ class NoteEditViewModel @Inject constructor(
     private val upsertNoteUseCase: UpsertNoteUseCase,
     private val getNoteUseCase: GetNoteUseCase,
     private val deleteNoteUseCase: DeleteNoteUseCase,
+    private val deleteRemoteNoteUseCase: DeleteRemoteNoteUseCase,
     private val postNoteUseCase: PostNoteUseCase,
     private val putNoteUseCase: PutNoteUseCase,
     private val triggerSyncUseCase: TriggerSyncUseCase,
@@ -146,6 +148,9 @@ class NoteEditViewModel @Inject constructor(
 
                     when (apiResult) {
                         is Resource.Success -> {
+                            apiResult.data?.let { remoteNote ->
+                                upsertNoteUseCase(remoteNote)
+                            }
                             triggerSyncUseCase()
                             _state.update { it.copy(isLoading = false) }
                             sendUiEvent(NoteEditUiEvent.NavigateBack)
@@ -171,7 +176,13 @@ class NoteEditViewModel @Inject constructor(
     private fun deleteNote() {
         viewModelScope.launch {
             val id = _state.value.id
+            val remoteId = _state.value.remoteId
+
             if (id != null) {
+                if (remoteId != null) {
+                    deleteRemoteNoteUseCase(remoteId)
+                }
+
                 when (val result = deleteNoteUseCase(id)) {
                     is Resource.Success -> {
                         triggerSyncUseCase()
