@@ -56,10 +56,10 @@ fun NoteEntity.toRequest(): NoteRequestDto = NoteRequestDto(
     description = description,
     tag = tag,
     isFinished = isFinished,
-    reminder = reminder,
-    checklist = checklist,
+    reminder = reminder?: "",
+    checklist = checklist?: "",
     priority = priority,
-    deleteAt = deleteAt,
+    deleteAt = deleteAt?: "",
     autoDelete = autoDelete
 )
 
@@ -68,9 +68,9 @@ fun Note.toRequest(): NoteRequestDto = NoteRequestDto(
     description = description,
     tag = tag,
     isFinished = isFinished,
-    reminder = reminder,
-    checklist = checklist,
+    reminder = reminder?: "",
+    checklist = checklist?: "",
     priority = priority,
-    deleteAt = deleteAt,
+    deleteAt = deleteAt?: "",
     autoDelete = autoDelete
 )
