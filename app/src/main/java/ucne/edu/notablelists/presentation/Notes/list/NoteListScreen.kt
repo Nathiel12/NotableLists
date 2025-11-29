@@ -8,13 +8,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,13 +22,19 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ucne.edu.notablelists.presentation.Notes.list.*
+import ucne.edu.notablelists.presentation.users.UserEvent
+import ucne.edu.notablelists.presentation.users.UserState
+import ucne.edu.notablelists.presentation.users.UserViewModel
 
 @Composable
 fun NotesListRoute(
     viewModel: NotesListViewModel = hiltViewModel(),
-    onNavigateToDetail: (String?) -> Unit
+    userViewModel: UserViewModel = hiltViewModel(),
+    onNavigateToDetail: (String?) -> Unit,
+    onNavigateToLogin: () -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val userState by userViewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.navigateToDetail) {
         state.navigateToDetail.forEach { noteId ->
@@ -41,14 +45,20 @@ fun NotesListRoute(
 
     NotesListScreen(
         state = state,
-        onEvent = viewModel::onEvent
+        userState = userState,
+        onEvent = viewModel::onEvent,
+        onUserEvent = userViewModel::onEvent,
+        onNavigateToLogin = onNavigateToLogin
     )
 }
 
 @Composable
 fun NotesListScreen(
     state: NotesListState,
-    onEvent: (NotesListEvent) -> Unit
+    userState: UserState,
+    onEvent: (NotesListEvent) -> Unit,
+    onUserEvent: (UserEvent) -> Unit,
+    onNavigateToLogin: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -58,9 +68,33 @@ fun NotesListScreen(
         }
     }
 
+    if (state.showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { onEvent(NotesListEvent.OnDismissLogoutDialog) },
+            title = { Text("Cerrar Sesión") },
+            text = { Text("¿Seguro quieres cerrar sesión?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onUserEvent(UserEvent.Logout)
+                        onEvent(NotesListEvent.OnDismissLogoutDialog)
+                    }
+                ) {
+                    Text("Cerrar Sesión")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { onEvent(NotesListEvent.OnDismissLogoutDialog) }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { onEvent(NotesListEvent.OnAddNoteClick) },
@@ -80,10 +114,23 @@ fun NotesListScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            CustomSearchBar(
-                query = state.searchQuery,
-                onQueryChange = { onEvent(NotesListEvent.OnSearchQueryChange(it)) }
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CustomSearchBar(
+                    query = state.searchQuery,
+                    onQueryChange = { onEvent(NotesListEvent.OnSearchQueryChange(it)) },
+                    modifier = Modifier.weight(1f)
+                )
+
+                UserAvatarMenu(
+                    currentUser = userState.currentUser,
+                    onLogoutClick = { onEvent(NotesListEvent.OnShowLogoutDialog) },
+                    onLoginClick = onNavigateToLogin
+                )
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -122,16 +169,85 @@ fun NotesListScreen(
 }
 
 @Composable
+fun UserAvatarMenu(
+    currentUser: String,
+    onLogoutClick: () -> Unit,
+    onLoginClick: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val isLoggedIn = currentUser.isNotBlank()
+
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = if (isLoggedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                contentColor = if (isLoggedIn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            if (isLoggedIn) {
+                Text(
+                    text = currentUser.take(1).uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.AccountCircle,
+                    contentDescription = null
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            if (isLoggedIn) {
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                text = "Hola, $currentUser",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    },
+                    onClick = { },
+                    enabled = false
+                )
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("Cerrar Sesión") },
+                    onClick = {
+                        onLogoutClick()
+                        expanded = false
+                    }
+                )
+            } else {
+                DropdownMenuItem(
+                    text = { Text("Iniciar Sesión") },
+                    onClick = {
+                        onLoginClick()
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun CustomSearchBar(
+    modifier: Modifier = Modifier,
     query: String,
     onQueryChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
+        modifier = modifier.height(56.dp),
         shape = RoundedCornerShape(50),
         placeholder = { Text("Buscar notas...") },
         leadingIcon = {
@@ -213,7 +329,7 @@ fun NoteItemCard(
                 )
 
                 noteUi.priorityChips.forEach { priority ->
-                    val (pContainer, pContent) = priority.style.getColors()
+                    val (_, pContent) = priority.style.getColors()
                     Surface(
                         color = pContent.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(6.dp),
@@ -241,16 +357,16 @@ fun NoteItemCard(
             )
 
             noteUi.tags.forEach { tag ->
-                val (tContainer, tContent) = tag.style.getColors()
+                val (tContainer, _) = tag.style.getColors()
                 Spacer(modifier = Modifier.height(12.dp))
                 Surface(
-                    color = tContent.copy(alpha = 0.8f),
+                    color = tContainer.copy(alpha = 0.8f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = tag.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = tContainer,
+                        color = containerColor,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
