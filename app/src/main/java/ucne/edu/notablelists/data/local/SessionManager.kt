@@ -19,10 +19,27 @@ class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val USER_KEY = stringPreferencesKey("current_user")
+    private val USER_ID_KEY = stringPreferencesKey("user_id")
+    private val USER_NAME_KEY = stringPreferencesKey("user_name")
 
-    suspend fun saveUser(username: String) {
+
+    suspend fun saveUser(userId: Int, username: String) {
         context.dataStore.edit { preferences ->
             preferences[USER_KEY] = username
+            preferences[USER_ID_KEY] = userId.toString()
+            preferences[USER_NAME_KEY] = username
+        }
+    }
+
+    fun getUserId(): Flow<Int?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[USER_ID_KEY]?.toIntOrNull()
+        }
+    }
+
+    fun getUserName(): Flow<String?> {
+        return context.dataStore.data.map { preferences ->
+            preferences[USER_NAME_KEY] ?: preferences[USER_KEY]
         }
     }
 
@@ -34,6 +51,8 @@ class SessionManager @Inject constructor(
 
     suspend fun clearUser() {
         context.dataStore.edit { preferences ->
+            preferences.remove(USER_ID_KEY)
+            preferences.remove(USER_NAME_KEY)
             preferences.remove(USER_KEY)
         }
     }
