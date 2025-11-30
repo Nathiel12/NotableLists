@@ -8,5 +8,7 @@ import javax.inject.Inject
 class CreateNoteLocalUseCase @Inject constructor(
     private val repository: NoteRepository
 ) {
-    suspend operator fun invoke(note: Note): Resource<Note> = repository.createNoteLocal(note)
+    suspend operator fun invoke(note: Note, userId: Int? = null): Resource<Note> {
+        return repository.createNoteLocal(note, userId)
+    }
 }
