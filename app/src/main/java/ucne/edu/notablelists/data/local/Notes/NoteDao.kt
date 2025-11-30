@@ -23,4 +23,14 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes")
     fun observeNotes(): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE userId = :userId")
+    fun getUserNotes(userId: Int): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM notes WHERE userId IS NULL")
+    fun getLocalNotes(): Flow<List<NoteEntity>>
+    @Query("UPDATE notes SET userId = :userId WHERE userId IS NULL")
+    suspend fun linkNotesToUser(userId: Int)
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotes(): List<NoteEntity>
 }
