@@ -1,12 +1,7 @@
 package ucne.edu.notablelists.data.remote
 
 import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.DELETE
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.PUT
-import retrofit2.http.Path
+import retrofit2.http.*
 import ucne.edu.notablelists.data.remote.dto.NoteRequestDto
 import ucne.edu.notablelists.data.remote.dto.NoteResponseDto
 
@@ -26,4 +21,26 @@ interface NoteApiService {
 
     @DELETE("api/Notes/{id}")
     suspend fun deleteNote(@Path("id") id: Int): Response<Unit>
+
+    @GET("api/Notes/Users/{userId}/Notes")
+    suspend fun getUserNotes(@Path("userId") userId: Int): Response<List<NoteResponseDto>>
+
+    @POST("api/Notes/Users/{userId}/Notes")
+    suspend fun createUserNote(
+        @Path("userId") userId: Int,
+        @Body request: NoteRequestDto
+    ): Response<NoteResponseDto>
+
+    @PUT("api/Notes/Users/{userId}/Notes/{id}")
+    suspend fun updateUserNote(
+        @Path("userId") userId: Int,
+        @Path("id") id: Int,
+        @Body request: NoteRequestDto
+    ): Response<Unit>
+
+    @DELETE("api/Notes/Users/{userId}/Notes/{id}")
+    suspend fun deleteUserNote(
+        @Path("userId") userId: Int,
+        @Path("id") id: Int
+    ): Response<Unit>
 }
