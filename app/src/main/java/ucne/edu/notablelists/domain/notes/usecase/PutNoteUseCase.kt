@@ -8,5 +8,7 @@ import javax.inject.Inject
 class PutNoteUseCase @Inject constructor(
     private val repository: NoteRepository
 ) {
-    suspend operator fun invoke(note: Note): Resource<Note> = repository.putNote(note)
+    suspend operator fun invoke(note: Note, userId: Int?): Resource<Note> {
+        return repository.putNote(note, userId)
+    }
 }
