@@ -18,7 +18,7 @@ sealed interface NotesListEvent {
 enum class NoteFilter(val label: String) {
     AZ("A-Z"),
     ZA("Z-A"),
-    DATE("Fecha"),
+    DATE("Reciente"),
     HIGH_PRIORITY("Alta"),
     MEDIUM_PRIORITY("Media"),
     LOW_PRIORITY("Baja")
