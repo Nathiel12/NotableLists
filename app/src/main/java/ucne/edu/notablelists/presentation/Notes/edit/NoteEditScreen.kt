@@ -33,11 +33,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.collectLatest
+import ucne.edu.notablelists.ui.theme.NotableListsTheme
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -494,6 +496,58 @@ fun ChipInfo(
             if (onDelete != null) {
                 Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(12.dp))
             }
+        }
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+fun NoteEditScreen_ComponentsPreview() {
+    NotableListsTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            TransparentHintTextField(
+                text = "Meeting Notes",
+                hint = "Título",
+                onValueChange = {},
+                textStyle = MaterialTheme.typography.displaySmall
+            )
+
+            FlowRowChips(
+                state = NoteEditState(
+                    priority = 2,
+                    tag = "work",
+                    reminder = "2024-01-15 14:30"
+                ),
+                onRemoveReminder = {},
+                onRemoveAutoDelete = {}
+            )
+
+            Column {
+                ChecklistItemRow(
+                    item = ChecklistItem("Prepare slides", false),
+                    onTextChange = {},
+                    onToggle = {},
+                    onRemove = {}
+                )
+                ChecklistItemRow(
+                    item = ChecklistItem("Review metrics", true),
+                    onTextChange = {},
+                    onToggle = {},
+                    onRemove = {}
+                )
+            }
+
+            TransparentHintTextField(
+                text = "Discussed project timeline and deliverables with the team...",
+                hint = "Escribe algo...",
+                onValueChange = {},
+                textStyle = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }
