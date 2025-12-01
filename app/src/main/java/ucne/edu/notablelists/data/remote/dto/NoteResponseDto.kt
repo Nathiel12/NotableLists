@@ -9,7 +9,5 @@ data class NoteResponseDto(
     val reminder: String,
     val checklist: String,
     val priority: Int,
-    val deleteAt: String,
-    val autoDelete: Boolean = false,
     val userId: Int? = null
 )
