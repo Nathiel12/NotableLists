@@ -125,6 +125,7 @@ class NotesListViewModel @Inject constructor(
             title = note.title,
             description = note.description,
             style = style,
+            reminder = note.reminder,
             priorityChips = priorityList,
             tags = tagList
         )
@@ -166,6 +167,7 @@ class NotesListViewModel @Inject constructor(
             }.launchIn(viewModelScope)
         }
     }
+
     private fun filterAndSortNotes(notes: List<Note>, query: String, filter: NoteFilter): List<Note> {
         val filtered = if (query.isBlank()) {
             notes
