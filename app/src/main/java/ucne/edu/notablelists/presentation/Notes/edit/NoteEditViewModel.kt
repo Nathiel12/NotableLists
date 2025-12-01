@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import ucne.edu.notablelists.data.local.AlarmScheduler
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
