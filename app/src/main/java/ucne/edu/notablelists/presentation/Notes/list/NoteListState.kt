@@ -1,7 +1,5 @@
 package ucne.edu.notablelists.presentation.Notes.list
 
-import androidx.compose.ui.graphics.Color
-
 data class NotesListState(
     val loadingStatus: List<Unit> = emptyList(),
     val notes: List<NoteUiItem> = emptyList(),
@@ -29,6 +27,7 @@ data class NoteUiItem(
     val title: String,
     val description: String,
     val style: NoteStyle,
+    val reminder: String? = null,
     val priorityChips: List<PriorityUiItem> = emptyList(),
     val tags: List<TagUiItem> = emptyList()
 )

@@ -10,12 +10,12 @@ data class NoteEditState(
     val isFinished: Boolean = false,
     val reminder: String? = null,
     val checklist: List<ChecklistItem> = emptyList(),
-    val autoDelete: Boolean = false,
-    val deleteAt: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isNoteSaved: Boolean = false,
-    val showDeleteDialog: Boolean = false
+    val showDeleteDialog: Boolean = false,
+    val isTagSheetOpen: Boolean = false,
+    val availableTags: List<String> = listOf("Personal", "Trabajo", "Estudio", "Ideas", "Urgente")
 )
 
 data class ChecklistItem(

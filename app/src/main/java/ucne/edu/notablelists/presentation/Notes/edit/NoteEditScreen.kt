@@ -5,19 +5,18 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,6 +31,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,7 +41,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.collectLatest
 import ucne.edu.notablelists.ui.theme.NotableListsTheme
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +58,7 @@ fun NoteEditScreen(
 
     val datePickerState = rememberDatePickerState()
     val timePickerState = rememberTimePickerState()
+    val sheetState = rememberModalBottomSheetState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -131,13 +132,26 @@ fun NoteEditScreen(
                         permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
                     viewModel.onEvent(NoteEditEvent.SetReminder(date, hour, minute))
-                } else {
-                    viewModel.onEvent(NoteEditEvent.SetAutoDelete(date, hour, minute))
                 }
                 showTimePicker = false
             }
         ) {
             TimePicker(state = timePickerState)
+        }
+    }
+
+    if (state.isTagSheetOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.HideTagSheet) },
+            sheetState = sheetState
+        ) {
+            TagSelectionSheetContent(
+                availableTags = state.availableTags,
+                currentTag = state.tag,
+                onTagSelected = { viewModel.onEvent(NoteEditEvent.SelectTag(it)) },
+                onTagCreated = { viewModel.onEvent(NoteEditEvent.CreateNewTag(it)) },
+                onTagDelete = { viewModel.onEvent(NoteEditEvent.DeleteAvailableTag(it)) }
+            )
         }
     }
 
@@ -173,13 +187,12 @@ fun NoteEditScreen(
                     showDatePicker = true
                     isMenuExpanded = false
                 },
-                onAutoDeleteClick = {
-                    pickerContext = PickerContext.AUTO_DELETE
-                    showDatePicker = true
-                    isMenuExpanded = false
-                },
                 onChecklistClick = {
                     viewModel.onEvent(NoteEditEvent.AddChecklistItem)
+                    isMenuExpanded = false
+                },
+                onTagClick = {
+                    viewModel.onEvent(NoteEditEvent.ShowTagSheet)
                     isMenuExpanded = false
                 },
                 onDeleteClick = {
@@ -212,7 +225,7 @@ fun NoteEditScreen(
             FlowRowChips(
                 state = state,
                 onRemoveReminder = { viewModel.onEvent(NoteEditEvent.ClearReminder) },
-                onRemoveAutoDelete = { viewModel.onEvent(NoteEditEvent.ClearAutoDelete) }
+                onRemoveTag = { viewModel.onEvent(NoteEditEvent.EnteredTag("")) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -251,6 +264,88 @@ fun NoteEditScreen(
     }
 }
 
+@Composable
+fun TagSelectionSheetContent(
+    availableTags: List<String>,
+    currentTag: String,
+    onTagSelected: (String) -> Unit,
+    onTagCreated: (String) -> Unit,
+    onTagDelete: (String) -> Unit
+) {
+    var newTagText by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Etiquetas",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            OutlinedTextField(
+                value = newTagText,
+                onValueChange = { newTagText = it },
+                label = { Text("Nueva etiqueta") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    if (newTagText.isNotBlank()) {
+                        onTagCreated(newTagText)
+                        newTagText = ""
+                        keyboardController?.hide()
+                    }
+                })
+            )
+            IconButton(onClick = {
+                if (newTagText.isNotBlank()) {
+                    onTagCreated(newTagText)
+                    newTagText = ""
+                    keyboardController?.hide()
+                }
+            }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Tag")
+            }
+        }
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            items(availableTags) { tag ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    NavigationDrawerItem(
+                        label = { Text(tag) },
+                        selected = tag == currentTag,
+                        onClick = { onTagSelected(tag) },
+                        icon = { Icon(Icons.Default.Label, contentDescription = null) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { onTagDelete(tag) }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Delete Tag",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
 enum class PickerContext { REMINDER, AUTO_DELETE }
 
 @Composable
@@ -275,9 +370,9 @@ fun DateTimePickerDialog(
 fun FlowRowChips(
     state: NoteEditState,
     onRemoveReminder: () -> Unit,
-    onRemoveAutoDelete: () -> Unit
+    onRemoveTag: () -> Unit
 ) {
-    if (state.priority > 0 || state.tag.isNotBlank() || state.reminder != null || state.autoDelete) {
+    if (state.priority > 0 || state.tag.isNotBlank() || state.reminder != null) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -285,16 +380,18 @@ fun FlowRowChips(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (state.priority > 0) {
-                ChipInfo(text = "P: ${state.priority}", icon = Icons.Default.Flag)
+                val priorityText = when(state.priority) {
+                    1 -> "Prioridad media"
+                    2 -> "Prioridad alta"
+                    else -> "P: ${state.priority}"
+                }
+                ChipInfo(text = priorityText, icon = Icons.Default.Flag)
             }
             if (state.tag.isNotBlank()) {
-                ChipInfo(text = state.tag, icon = Icons.Default.Label)
+                ChipInfo(text = state.tag, icon = Icons.Default.Label, onDelete = onRemoveTag)
             }
             state.reminder?.let {
                 ChipInfo(text = it, icon = Icons.Default.Alarm, onDelete = onRemoveReminder)
-            }
-            if (state.autoDelete && state.deleteAt != null) {
-                ChipInfo(text = "Del: ${state.deleteAt}", icon = Icons.Default.Timer, onDelete = onRemoveAutoDelete)
             }
         }
     }
@@ -366,8 +463,8 @@ fun FabMenu(
     onToggle: () -> Unit,
     onPriorityClick: () -> Unit,
     onReminderClick: () -> Unit,
-    onAutoDeleteClick: () -> Unit,
     onChecklistClick: () -> Unit,
+    onTagClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     val rotation by animateFloatAsState(targetValue = if (expanded) 135f else 0f, label = "fab_rotation")
@@ -387,7 +484,7 @@ fun FabMenu(
             ) {
                 FabMenuItem(Icons.Default.Flag, "Prioridad", onPriorityClick)
                 FabMenuItem(Icons.Default.Alarm, "Recordatorio", onReminderClick)
-                FabMenuItem(Icons.Default.Timer, "Auto-Eliminar", onAutoDeleteClick)
+                FabMenuItem(Icons.Default.Label, "Etiqueta", onTagClick)
                 FabMenuItem(Icons.Default.Checklist, "Lista", onChecklistClick)
                 FabMenuItem(Icons.Default.Delete, "Eliminar", onDeleteClick, MaterialTheme.colorScheme.errorContainer)
             }

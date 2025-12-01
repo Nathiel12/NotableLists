@@ -2,20 +2,21 @@ package ucne.edu.notablelists.presentation.notes_list
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -316,63 +317,96 @@ fun NoteItemCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = noteUi.title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = contentColor,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                noteUi.priorityChips.forEach { priority ->
-                    val (_, pContent) = priority.style.getColors()
-                    Surface(
-                        color = pContent.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Text(
-                            text = priority.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = pContent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             Text(
-                text = noteUi.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = contentColor.copy(alpha = 0.9f),
-                maxLines = 6,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.2
+                text = noteUi.title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = contentColor,
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
-            noteUi.tags.forEach { tag ->
-                val (tContainer, _) = tag.style.getColors()
-                Spacer(modifier = Modifier.height(12.dp))
-                Surface(
-                    color = tContainer.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
+            if (noteUi.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = noteUi.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor.copy(alpha = 0.9f),
+                    maxLines = 6,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.2
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                noteUi.priorityChips.forEach { priority ->
+                    val (_, pContent) = priority.style.getColors()
+                    MetaDataChip(
+                        text = priority.label,
+                        icon = Icons.Default.Flag,
+                        contentColor = pContent,
+                        containerColor = pContent.copy(alpha = 0.1f)
+                    )
+                }
+
+                noteUi.tags.forEach { tag ->
+                    val (_, tContent) = tag.style.getColors()
+                    MetaDataChip(
                         text = tag.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = containerColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        icon = Icons.Default.Label,
+                        contentColor = contentColor,
+                        containerColor = contentColor.copy(alpha = 0.1f)
+                    )
+                }
+
+                noteUi.reminder?.let { reminder ->
+                    MetaDataChip(
+                        text = reminder,
+                        icon = Icons.Default.Alarm,
+                        contentColor = contentColor,
+                        containerColor = contentColor.copy(alpha = 0.1f)
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun MetaDataChip(
+    text: String,
+    icon: ImageVector,
+    contentColor: Color,
+    containerColor: Color
+) {
+    Surface(
+        color = containerColor,
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = contentColor
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor
+            )
         }
     }
 }

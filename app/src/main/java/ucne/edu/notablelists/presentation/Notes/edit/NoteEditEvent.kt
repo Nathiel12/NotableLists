@@ -6,7 +6,6 @@ sealed interface NoteEditEvent {
     data class EnteredTag(val value: String) : NoteEditEvent
     data class ChangePriority(val value: Int) : NoteEditEvent
     data class SetReminder(val date: Long, val timeHour: Int, val timeMinute: Int) : NoteEditEvent
-    data class SetAutoDelete(val date: Long, val timeHour: Int, val timeMinute: Int) : NoteEditEvent
     data object AddChecklistItem : NoteEditEvent
     data class UpdateChecklistItem(val index: Int, val text: String) : NoteEditEvent
     data class ToggleChecklistItem(val index: Int) : NoteEditEvent
@@ -17,5 +16,9 @@ sealed interface NoteEditEvent {
     data object DismissDeleteDialog : NoteEditEvent
     data object OnBackClick : NoteEditEvent
     data object ClearReminder : NoteEditEvent
-    data object ClearAutoDelete : NoteEditEvent
+    data object ShowTagSheet : NoteEditEvent
+    data object HideTagSheet : NoteEditEvent
+    data class SelectTag(val tag: String) : NoteEditEvent
+    data class CreateNewTag(val tag: String) : NoteEditEvent
+    data class DeleteAvailableTag(val tag: String) : NoteEditEvent
 }
