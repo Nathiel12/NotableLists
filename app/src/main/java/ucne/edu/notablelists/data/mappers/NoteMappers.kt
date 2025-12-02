@@ -3,6 +3,7 @@ package ucne.edu.notablelists.data.mappers
 import ucne.edu.notablelists.data.local.Notes.NoteEntity
 import ucne.edu.notablelists.data.remote.dto.NoteRequestDto
 import ucne.edu.notablelists.data.remote.dto.NoteResponseDto
+import ucne.edu.notablelists.data.remote.dto.SharedNoteWithDetailsDto
 import ucne.edu.notablelists.domain.notes.model.Note
 import java.util.UUID
 
@@ -81,5 +82,19 @@ fun NoteResponseDto.toDomain(): Note = Note(
     reminder = reminder,
     checklist = checklist,
     priority = priority,
+    isPendingCreate = false
+)
+
+fun SharedNoteWithDetailsDto.toDomainNote(): Note = Note(
+    id = this.noteId.toString(),
+    remoteId = this.noteId,
+    userId = this.ownerUserId,
+    title = this.noteTitle,
+    description = this.noteDescription ?: "",
+    tag = this.tag ?: "",
+    priority = this.priority,
+    isFinished = this.isFinished,
+    reminder = this.reminder,
+    checklist = this.checklist,
     isPendingCreate = false
 )
