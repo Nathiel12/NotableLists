@@ -20,6 +20,7 @@ data class NoteEditState(
     val isTagSheetOpen: Boolean = false,
     val availableTags: List<String> = listOf("Personal", "Trabajo", "Estudio", "Ideas", "Urgente"),
     val isOwner: Boolean = true,
+    val noteOwnerId: Int? = null,
     val currentUserId: Int? = null,
     val showLoginRequiredDialog: Boolean = false,
     val showNoFriendsDialog: Boolean = false,
