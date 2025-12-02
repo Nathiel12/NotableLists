@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import ucne.edu.notablelists.data.mappers.toDomain
+import ucne.edu.notablelists.data.mappers.toUserDomain
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.data.remote.dto.FriendDto
 import ucne.edu.notablelists.data.remote.dto.PendingRequestDto
@@ -16,6 +18,7 @@ import ucne.edu.notablelists.data.remote.dto.UserResponseDto
 import ucne.edu.notablelists.domain.friends.model.Friend
 import ucne.edu.notablelists.domain.friends.model.PendingRequest
 import ucne.edu.notablelists.domain.friends.usecase.AcceptFriendRequestUseCase
+import ucne.edu.notablelists.domain.friends.usecase.DeclineFriendRequestUseCase
 import ucne.edu.notablelists.domain.friends.usecase.GetFriendsUseCase
 import ucne.edu.notablelists.domain.friends.usecase.GetPendingRequestUseCase
 import ucne.edu.notablelists.domain.friends.usecase.RemoveFriendUseCase
@@ -33,6 +36,7 @@ class FriendsViewModel @Inject constructor(
     private val searchUserUseCase: SearchUserUseCase,
     private val sendFriendRequestUseCase: SendFriendRequestUseCase,
     private val removeFriendUseCase: RemoveFriendUseCase,
+    private val declineFriendRequestUseCase: DeclineFriendRequestUseCase,
     private val getUserIdUseCase: GetUserIdUseCase
 ) : ViewModel() {
 
@@ -84,6 +88,9 @@ class FriendsViewModel @Inject constructor(
             FriendsEvent.OnDeleteFriend -> {
                 removeFriend()
             }
+            is FriendsEvent.OnDeclineFriendRequest -> {
+                declineFriendRequest(event.friendshipId)
+            }
         }
     }
 
@@ -129,7 +136,7 @@ class FriendsViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            searchResults = result.data?.map { dto -> dto.toDomain() } ?: emptyList()
+                            searchResults = result.data?.map { dto -> dto.toUserDomain() } ?: emptyList()
                         )
                     }
                 }
@@ -195,21 +202,34 @@ class FriendsViewModel @Inject constructor(
             }
         }
     }
+    private fun declineFriendRequest(friendshipId: Int) {
+        val userId = currentUserId ?: return
 
-    private fun FriendDto.toDomain() = Friend(
-        id = userId,
-        username = username
-    )
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
 
-    private fun PendingRequestDto.toDomain() = PendingRequest(
-        id = friendshipId,
-        requesterId = requesterId,
-        requesterUsername = requesterUsername
-    )
+            when (val result = declineFriendRequestUseCase(userId, friendshipId)) {
+                is Resource.Success -> {
+                    val pendingResult = getPendingRequestUseCase(userId)
+                    _state.update { currentState ->
+                        val pending = if (pendingResult is Resource.Success) {
+                            pendingResult.data?.map { it.toDomain() } ?: emptyList()
+                        } else currentState.pendingRequests
 
-    private fun UserResponseDto.toDomain() = User(
-        remoteId = userId,
-        username = username,
-        password = ""
-    )
+                        currentState.copy(
+                            isLoading = false,
+                            successMessage = "Solicitud rechazada",
+                            pendingRequests = pending
+                        )
+                    }
+                }
+                is Resource.Error -> {
+                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+                is Resource.Loading -> {
+                    _state.update { it.copy(isLoading = true) }
+                }
+            }
+        }
+    }
 }
