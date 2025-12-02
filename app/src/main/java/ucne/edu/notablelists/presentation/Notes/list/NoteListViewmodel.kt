@@ -1,6 +1,5 @@
 package ucne.edu.notablelists.presentation.Notes.list
 
-import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,6 +9,9 @@ import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.friends.usecase.GetPendingRequestUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.usecase.*
+import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
+import ucne.edu.notablelists.domain.sharednote.usecase.GetNotesSharedWithMeUseCase
+import ucne.edu.notablelists.domain.sharednote.usecase.SyncSharedNotesUseCase
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,10 +22,14 @@ class NotesListViewModel @Inject constructor(
     private val getUserIdUseCase: GetUserIdUseCase,
     private val fetchUserNotesUseCase: FetchUserNotesUseCase,
     private val postPendingNotesUseCase: PostPendingNotesUseCase,
-    private val getPendingRequestUseCase: GetPendingRequestUseCase
+    private val getPendingRequestUseCase: GetPendingRequestUseCase,
+    private val getNotesSharedWithMeUseCase: GetNotesSharedWithMeUseCase,
+    private val syncSharedNotesUseCase: SyncSharedNotesUseCase
 ) : ViewModel() {
 
-    private val _rawNotes = MutableStateFlow<List<Note>>(emptyList())
+    private val _localNotes = MutableStateFlow<List<Note>>(emptyList())
+    private val _sharedNotes = MutableStateFlow<List<Note>>(emptyList())
+
     private val _searchQuery = MutableStateFlow("")
     private val _selectedFilter = MutableStateFlow(NoteFilter.DATE)
     private val _isLoading = MutableStateFlow(false)
@@ -34,6 +40,7 @@ class NotesListViewModel @Inject constructor(
     private val _selectedNoteIds = MutableStateFlow<Set<String>>(emptySet())
     private val _showDeleteSelectionDialog = MutableStateFlow(false)
     private val _pendingRequestCount = MutableStateFlow(0)
+    private var _currentUserId: Int? = null
 
     private val _filterState = combine(_searchQuery, _selectedFilter) { query, filter ->
         Pair(query, filter)
@@ -43,9 +50,13 @@ class NotesListViewModel @Inject constructor(
         Triple(loading, error, refreshing)
     }
 
+    private val _combinedNotes = combine(_localNotes, _sharedNotes) { local, shared ->
+        local + shared
+    }
+
     @Suppress("UNCHECKED_CAST")
     val state: StateFlow<NotesListState> = combine(
-        _rawNotes,
+        _combinedNotes,
         _filterState,
         _uiStatusState,
         _navigationEvent,
@@ -174,6 +185,8 @@ class NotesListViewModel @Inject constructor(
             emptyList()
         }
 
+        val isShared = note.userId != null && _currentUserId != null && note.userId != _currentUserId
+
         return NoteUiItem(
             id = note.id,
             title = note.title,
@@ -182,7 +195,8 @@ class NotesListViewModel @Inject constructor(
             reminder = note.reminder,
             priorityChips = priorityList,
             tags = tagList,
-            isSelected = isSelected
+            isSelected = isSelected,
+            isShared = isShared
         )
     }
 
@@ -199,26 +213,37 @@ class NotesListViewModel @Inject constructor(
             _isLoading.value = true
 
             val userId = getUserIdUseCase().first()
+            _currentUserId = userId
 
             if (userId != null) {
                 launch { checkPendingRequests(userId) }
+                launch { fetchSharedNotes(userId) }
 
                 when (val apiResult = fetchUserNotesUseCase(userId)) {
                     is Resource.Success -> {
                         apiResult.data?.let { apiNotes ->
-                            _rawNotes.value = apiNotes
                         }
                     }
-                    is Resource.Error -> {
-                    }
+                    is Resource.Error -> {}
                     else -> {}
                 }
             }
 
             getNotesUseCase().onEach { notes ->
-                _rawNotes.value = notes
+                _localNotes.value = notes
                 _isLoading.value = false
             }.launchIn(viewModelScope)
+        }
+    }
+
+    private suspend fun fetchSharedNotes(userId: Int) {
+        when (val result = getNotesSharedWithMeUseCase(userId)) {
+            is Resource.Success -> {
+                _sharedNotes.value = result.data ?: emptyList()
+            }
+            is Resource.Error -> {
+            }
+            else -> {}
         }
     }
 
@@ -289,11 +314,13 @@ class NotesListViewModel @Inject constructor(
             if (userId != null) {
                 checkPendingRequests(userId)
                 fetchUserNotesUseCase(userId)
+                syncSharedNotesUseCase(userId)
+                fetchSharedNotes(userId)
+
                 val result = postPendingNotesUseCase(userId)
                 if (result is Resource.Error) {
                     _errorMessage.value = result.message
                 }
-                loadNotes()
             }
             _isRefreshing.value = false
         }

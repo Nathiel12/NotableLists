@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -25,6 +26,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -32,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,12 +43,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.collectLatest
+import ucne.edu.notablelists.domain.friends.model.Friend
 import ucne.edu.notablelists.ui.theme.NotableListsTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onNavigateToFriends: () -> Unit,
     viewModel: NoteEditViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -59,6 +65,7 @@ fun NoteEditScreen(
     val datePickerState = rememberDatePickerState()
     val timePickerState = rememberTimePickerState()
     val sheetState = rememberModalBottomSheetState()
+    val shareSheetState = rememberModalBottomSheetState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -71,6 +78,20 @@ fun NoteEditScreen(
         }
     }
 
+    LaunchedEffect(state.errorMessage) {
+        state.errorMessage?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            viewModel.onEvent(NoteEditEvent.DismissShareDialogs)
+        }
+    }
+
+    LaunchedEffect(state.successMessage) {
+        state.successMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.onEvent(NoteEditEvent.DismissShareDialogs)
+        }
+    }
+
     BackHandler {
         viewModel.onEvent(NoteEditEvent.OnBackClick)
     }
@@ -79,6 +100,8 @@ fun NoteEditScreen(
         viewModel.uiEvent.collectLatest { event ->
             when (event) {
                 is NoteEditUiEvent.NavigateBack -> onNavigateBack()
+                is NoteEditUiEvent.NavigateToLogin -> onNavigateToLogin()
+                is NoteEditUiEvent.NavigateToFriendList -> onNavigateToFriends()
             }
         }
     }
@@ -86,20 +109,92 @@ fun NoteEditScreen(
     if (state.showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissDeleteDialog) },
-            title = { Text("¿Estás seguro?") },
-            text = { Text("Eliminar una nota es permanente y no se puede deshacer") },
+            title = { Text(if (state.isOwner) "Eliminar nota" else "Salir de nota compartida") },
+            text = {
+                Text(
+                    if (state.isOwner) "Eliminar una nota es permanente y no se puede deshacer."
+                    else "Si sales de esta nota compartida, ya no podrás acceder a ella a menos que te la compartan de nuevo."
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.onEvent(NoteEditEvent.DeleteNote) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Eliminar")
+                    Text(if (state.isOwner) "Eliminar" else "Salir")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissDeleteDialog) }) { Text("Cancelar") }
             }
         )
+    }
+
+    if (state.showLoginRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissShareDialogs) },
+            title = { Text("Iniciar Sesión") },
+            text = { Text("Para compartir notas y colaborar con amigos, necesitas estar conectado a tu cuenta.") },
+            confirmButton = {
+                Button(onClick = { viewModel.onEvent(NoteEditEvent.NavigateToLogin) }) {
+                    Text("Iniciar Sesión")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissShareDialogs) }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (state.showNoFriendsDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissShareDialogs) },
+            icon = { Icon(Icons.Default.People, contentDescription = null) },
+            title = { Text("¡Necesitas Amigos!") },
+            text = { Text("Aún no tienes amigos agregados para compartir esta nota. Ve a tu lista de amigos para agregar personas.") },
+            confirmButton = {
+                Button(onClick = { viewModel.onEvent(NoteEditEvent.NavigateToFriends) }) {
+                    Text("Ir a Amigos")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(NoteEditEvent.DismissShareDialogs) }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (state.showShareSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.onEvent(NoteEditEvent.DismissShareDialogs) },
+            sheetState = shareSheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Compartir con...",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(state.friends) { friend ->
+                        FriendSelectionItem(
+                            friend = friend,
+                            onClick = { viewModel.onEvent(NoteEditEvent.ShareWithFriend(friend.id)) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
     }
 
     if (showDatePicker) {
@@ -195,6 +290,10 @@ fun NoteEditScreen(
                     viewModel.onEvent(NoteEditEvent.ShowTagSheet)
                     isMenuExpanded = false
                 },
+                onShareClick = {
+                    viewModel.onEvent(NoteEditEvent.OnShareClick)
+                    isMenuExpanded = false
+                },
                 onDeleteClick = {
                     viewModel.onEvent(NoteEditEvent.ShowDeleteDialog)
                     isMenuExpanded = false
@@ -260,6 +359,44 @@ fun NoteEditScreen(
             )
 
             Spacer(modifier = Modifier.height(100.dp))
+        }
+    }
+}
+
+@Composable
+fun FriendSelectionItem(
+    friend: Friend,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = friend.username.take(1).uppercase(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = friend.username,
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
@@ -465,6 +602,7 @@ fun FabMenu(
     onReminderClick: () -> Unit,
     onChecklistClick: () -> Unit,
     onTagClick: () -> Unit,
+    onShareClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     val rotation by animateFloatAsState(targetValue = if (expanded) 135f else 0f, label = "fab_rotation")
@@ -485,6 +623,7 @@ fun FabMenu(
                 FabMenuItem(Icons.Default.Flag, "Prioridad", onPriorityClick)
                 FabMenuItem(Icons.Default.Alarm, "Recordatorio", onReminderClick)
                 FabMenuItem(Icons.Default.Label, "Etiqueta", onTagClick)
+                FabMenuItem(Icons.Default.Share, "Compartir", onShareClick)
                 FabMenuItem(Icons.Default.Checklist, "Lista", onChecklistClick)
                 FabMenuItem(Icons.Default.Delete, "Eliminar", onDeleteClick, MaterialTheme.colorScheme.errorContainer)
             }

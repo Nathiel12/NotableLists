@@ -14,12 +14,14 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ucne.edu.notablelists.data.remote.Resource
+import ucne.edu.notablelists.domain.friends.usecase.GetFriendsUseCase
 import ucne.edu.notablelists.domain.notes.model.Note
 import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.notes.usecase.*
 import ucne.edu.notablelists.domain.notification.CancelReminderUseCase
 import ucne.edu.notablelists.domain.notification.ScheduleReminderUseCase
 import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
+import ucne.edu.notablelists.domain.sharednote.usecase.ShareNoteUseCase
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -38,6 +40,8 @@ class NoteEditViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val scheduleReminderUseCase: ScheduleReminderUseCase,
     private val cancelReminderUseCase: CancelReminderUseCase,
+    private val getFriendsUseCase: GetFriendsUseCase,
+    private val shareNoteUseCase: ShareNoteUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -52,6 +56,14 @@ class NoteEditViewModel @Inject constructor(
             if (noteId.isNotBlank()) {
                 loadNote(noteId)
             }
+        }
+        checkUserSession()
+    }
+
+    private fun checkUserSession() {
+        viewModelScope.launch {
+            val userId = getUserIdUseCase().first()
+            _state.update { it.copy(currentUserId = userId) }
         }
     }
 
@@ -113,7 +125,7 @@ class NoteEditViewModel @Inject constructor(
                 _state.update { it.copy(showDeleteDialog = false) }
             }
             is NoteEditEvent.DeleteNote -> {
-                deleteNote()
+                handleDeleteAction()
             }
             is NoteEditEvent.OnBackClick -> {
                 saveNoteAndExit()
@@ -154,6 +166,84 @@ class NoteEditViewModel @Inject constructor(
                     it.copy(availableTags = newTags, tag = currentTag)
                 }
             }
+            is NoteEditEvent.OnShareClick -> {
+                checkShareRequirements()
+            }
+            is NoteEditEvent.DismissShareDialogs -> {
+                _state.update {
+                    it.copy(
+                        showLoginRequiredDialog = false,
+                        showNoFriendsDialog = false,
+                        showShareSheet = false,
+                        errorMessage = null,
+                        successMessage = null
+                    )
+                }
+            }
+            is NoteEditEvent.NavigateToLogin -> {
+                _state.update { it.copy(showLoginRequiredDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateToLogin)
+            }
+            is NoteEditEvent.NavigateToFriends -> {
+                _state.update { it.copy(showNoFriendsDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateToFriendList)
+            }
+            is NoteEditEvent.ShareWithFriend -> {
+                shareNote(event.friendId)
+            }
+        }
+    }
+
+    private fun checkShareRequirements() {
+        viewModelScope.launch {
+            val userId = _state.value.currentUserId
+            if (userId == null || userId == 0) {
+                _state.update { it.copy(showLoginRequiredDialog = true) }
+                return@launch
+            }
+
+            _state.update { it.copy(isLoading = true) }
+            when (val result = getFriendsUseCase(userId)) {
+                is Resource.Success -> {
+                    val friends = result.data ?: emptyList()
+                    if (friends.isEmpty()) {
+                        _state.update { it.copy(isLoading = false, showNoFriendsDialog = true) }
+                    } else {
+                        val domainFriends = friends.map {
+                            ucne.edu.notablelists.domain.friends.model.Friend(it.userId, it.username)
+                        }
+                        _state.update { it.copy(isLoading = false, showShareSheet = true, friends = domainFriends) }
+                    }
+                }
+                is Resource.Error -> {
+                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+                is Resource.Loading -> {}
+            }
+        }
+    }
+
+    private fun shareNote(friendId: Int) {
+        viewModelScope.launch {
+            val userId = _state.value.currentUserId ?: return@launch
+            val noteRemoteId = _state.value.remoteId
+
+            if (noteRemoteId == null) {
+                _state.update { it.copy(errorMessage = "Debes sincronizar la nota antes de compartirla.") }
+                return@launch
+            }
+
+            _state.update { it.copy(isLoading = true, showShareSheet = false) }
+
+            when (val result = shareNoteUseCase(userId, noteRemoteId, friendId)) {
+                is Resource.Success -> {
+                    _state.update { it.copy(isLoading = false, successMessage = "Nota compartida exitosamente") }
+                }
+                is Resource.Error -> {
+                    _state.update { it.copy(isLoading = false, errorMessage = result.message) }
+                }
+                is Resource.Loading -> {}
+            }
         }
     }
 
@@ -161,6 +251,8 @@ class NoteEditViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             val note = getNoteUseCase(id)
+            val userId = getUserIdUseCase().first()
+
             note?.let { n ->
                 _state.update { state ->
                     val updatedTags = if (n.tag.isNotBlank() && !state.availableTags.contains(n.tag)) {
@@ -168,6 +260,8 @@ class NoteEditViewModel @Inject constructor(
                     } else {
                         state.availableTags
                     }
+                    val isOwner = n.userId == userId || n.userId == null
+
                     state.copy(
                         id = n.id,
                         remoteId = n.remoteId,
@@ -179,10 +273,57 @@ class NoteEditViewModel @Inject constructor(
                         reminder = n.reminder,
                         checklist = parseChecklist(n.checklist),
                         availableTags = updatedTags,
-                        isLoading = false
+                        isLoading = false,
+                        isOwner = isOwner
                     )
                 }
             } ?: _state.update { it.copy(isLoading = false) }
+        }
+    }
+
+    private fun handleDeleteAction() {
+        if (_state.value.isOwner) {
+            deleteNoteOwner()
+        } else {
+            leaveSharedNote()
+        }
+    }
+
+    private fun leaveSharedNote() {
+        viewModelScope.launch {
+            val id = _state.value.id
+            if (id != null) {
+                deleteNoteUseCase(id)
+                _state.update { it.copy(showDeleteDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateBack)
+            }
+        }
+    }
+
+    private fun deleteNoteOwner() {
+        viewModelScope.launch {
+            val id = _state.value.id
+            val remoteId = _state.value.remoteId
+
+            if (id != null) {
+                cancelReminderUseCase(id)
+                if (remoteId != null) {
+                    deleteRemoteNoteUseCase(remoteId)
+                }
+                when (val result = deleteNoteUseCase(id)) {
+                    is Resource.Success -> {
+                        _state.update { it.copy(showDeleteDialog = false) }
+                        sendUiEvent(NoteEditUiEvent.NavigateBack)
+                    }
+                    is Resource.Error -> {
+                        _state.update { it.copy(errorMessage = result.message, showDeleteDialog = false) }
+                    }
+                    else -> {}
+                }
+            } else {
+                _state.update { it.copy(showDeleteDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateBack)
+            }
         }
     }
 
@@ -203,6 +344,7 @@ class NoteEditViewModel @Inject constructor(
             val note = Note(
                 id = currentState.id ?: UUID.randomUUID().toString(),
                 remoteId = currentState.remoteId,
+                userId = currentState.currentUserId,
                 title = currentState.title,
                 description = currentState.description,
                 tag = currentState.tag,
@@ -214,7 +356,7 @@ class NoteEditViewModel @Inject constructor(
 
             when (val result = upsertNoteUseCase(note, userId)) {
                 is Resource.Success -> {
-                    if (note.remoteId != null) {
+                    if (note.remoteId != null && userId != null) {
                         when (val apiResult = putNoteUseCase(note, userId)) {
                             is Resource.Success -> {
                                 apiResult.data?.let { updatedNote ->
@@ -241,33 +383,6 @@ class NoteEditViewModel @Inject constructor(
                 is Resource.Loading -> {
                     _state.update { it.copy(isLoading = true) }
                 }
-            }
-        }
-    }
-
-    private fun deleteNote() {
-        viewModelScope.launch {
-            val id = _state.value.id
-            val remoteId = _state.value.remoteId
-
-            if (id != null) {
-                cancelReminderUseCase(id)
-                if (remoteId != null) {
-                    deleteRemoteNoteUseCase(remoteId)
-                }
-                when (val result = deleteNoteUseCase(id)) {
-                    is Resource.Success -> {
-                        _state.update { it.copy(showDeleteDialog = false) }
-                        sendUiEvent(NoteEditUiEvent.NavigateBack)
-                    }
-                    is Resource.Error -> {
-                        _state.update { it.copy(errorMessage = result.message, showDeleteDialog = false) }
-                    }
-                    else -> {}
-                }
-            } else {
-                _state.update { it.copy(showDeleteDialog = false) }
-                sendUiEvent(NoteEditUiEvent.NavigateBack)
             }
         }
     }

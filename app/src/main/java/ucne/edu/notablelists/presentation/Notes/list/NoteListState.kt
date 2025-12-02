@@ -35,7 +35,9 @@ data class NoteUiItem(
     val reminder: String? = null,
     val priorityChips: List<PriorityUiItem> = emptyList(),
     val tags: List<TagUiItem> = emptyList(),
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val isShared: Boolean = false,
+    val ownerName: String? = null
 )
 
 data class PriorityUiItem(

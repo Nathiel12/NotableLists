@@ -74,7 +74,13 @@ fun AppNavHost() {
                 )
             ) {
                 NoteEditScreen(
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToLogin = {
+                        navController.navigate(Screen.Login.route)
+                    },
+                    onNavigateToFriends = {
+                        navController.navigate(Screen.Friends.route)
+                    }
                 )
             }
 

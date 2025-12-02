@@ -21,4 +21,9 @@ sealed interface NoteEditEvent {
     data class SelectTag(val tag: String) : NoteEditEvent
     data class CreateNewTag(val tag: String) : NoteEditEvent
     data class DeleteAvailableTag(val tag: String) : NoteEditEvent
+    data object OnShareClick : NoteEditEvent
+    data class ShareWithFriend(val friendId: Int) : NoteEditEvent
+    data object DismissShareDialogs : NoteEditEvent
+    data object NavigateToLogin : NoteEditEvent
+    data object NavigateToFriends : NoteEditEvent
 }
