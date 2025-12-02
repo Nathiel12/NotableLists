@@ -4,7 +4,10 @@ import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ucne.edu.notablelists.data.remote.Resource
 import ucne.edu.notablelists.domain.friends.usecase.GetPendingRequestUseCase
@@ -41,6 +44,8 @@ class NotesListViewModel @Inject constructor(
     private val _showDeleteSelectionDialog = MutableStateFlow(false)
     private val _pendingRequestCount = MutableStateFlow(0)
     private var _currentUserId: Int? = null
+
+    private var pollingJob: Job? = null
 
     private val _filterState = combine(_searchQuery, _selectedFilter) { query, filter ->
         Pair(query, filter)
@@ -220,6 +225,7 @@ class NotesListViewModel @Inject constructor(
             if (userId != null) {
                 launch { checkPendingRequests(userId) }
                 launch { fetchSharedNotes(userId) }
+                startPolling(userId)
 
                 when (val apiResult = fetchUserNotesUseCase(userId)) {
                     is Resource.Success -> {
@@ -235,6 +241,17 @@ class NotesListViewModel @Inject constructor(
                 _localNotes.value = notes
                 _isLoading.value = false
             }.launchIn(viewModelScope)
+        }
+    }
+
+    private fun startPolling(userId: Int) {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
+            while (isActive) {
+                delay(5000)
+                fetchSharedNotes(userId)
+                fetchUserNotesUseCase(userId)
+            }
         }
     }
 
