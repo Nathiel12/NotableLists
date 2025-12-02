@@ -1,15 +1,16 @@
 package ucne.edu.notablelists.presentation.users
 
+import ucne.edu.notablelists.domain.session.usecase.GetUserIdUseCase
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ucne.edu.notablelists.data.remote.Resource
+import ucne.edu.notablelists.domain.auth.AuthRepository
+import ucne.edu.notablelists.domain.notes.repository.NoteRepository
 import ucne.edu.notablelists.domain.notes.usecase.ClearLocalNotesUseCase
 import ucne.edu.notablelists.domain.session.usecase.ClearSessionUseCase
 import ucne.edu.notablelists.domain.session.usecase.GetSessionUseCase
@@ -20,17 +21,13 @@ import ucne.edu.notablelists.domain.utils.usecase.LoginUserUseCase
 import ucne.edu.notablelists.domain.utils.usecase.SyncUserDataUseCase
 import javax.inject.Inject
 
-sealed interface UserSideEffect {
-    data object NavigateToProfile : UserSideEffect
-    data class ShowError(val message: String) : UserSideEffect
-}
-
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val postUserUseCase: PostUserUseCase,
     private val validateUseCase: ValidateUserUseCase,
     private val getSessionUseCase: GetSessionUseCase,
     private val saveSessionUseCase: SaveSessionUseCase,
+    private val getUserIdUseCase: GetUserIdUseCase,
     private val clearSessionUseCase: ClearSessionUseCase,
     private val loginUserUseCase: LoginUserUseCase,
     private val clearLocalNotesUseCase: ClearLocalNotesUseCase,
@@ -40,20 +37,15 @@ class UserViewModel @Inject constructor(
     private val _state = MutableStateFlow(UserState())
     val state: StateFlow<UserState> = _state
 
-    private val _uiEffect = Channel<UserSideEffect>()
-    val uiEffect = _uiEffect.receiveAsFlow()
-
     init {
-        checkSession()
-    }
-
-    private fun checkSession() {
         viewModelScope.launch {
             getSessionUseCase().collect { user ->
-                if (!user.isNullOrBlank()) {
-                    _uiEffect.send(UserSideEffect.NavigateToProfile)
+                _state.update {
+                    it.copy(
+                        currentUser = user ?: "",
+                        isSessionChecked = true
+                    )
                 }
-                _state.update { it.copy(isSessionChecked = true) }
             }
         }
     }
@@ -64,11 +56,11 @@ class UserViewModel @Inject constructor(
             UserEvent.LoginUser -> loginUser()
             UserEvent.Logout -> logout()
             UserEvent.ClearError -> clearError()
+            UserEvent.ClearSuccess -> clearSuccess()
             is UserEvent.UserNameChanged -> userNameChanged(event.value)
             is UserEvent.PasswordChanged -> passwordChanged(event.value)
             UserEvent.ShowSkipDialog -> _state.update { it.copy(showSkipDialog = true) }
             UserEvent.DismissSkipDialog -> _state.update { it.copy(showSkipDialog = false) }
-            UserEvent.SkipLogin -> skipLogin()
         }
     }
 
@@ -82,7 +74,7 @@ class UserViewModel @Inject constructor(
         }
     }
 
-    private fun passwordChanged(password: String) {
+    fun passwordChanged(password: String) {
         _state.update {
             it.copy(
                 password = password,
@@ -106,19 +98,31 @@ class UserViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                when (val result = postUserUseCase(username, password)) {
+                val result = postUserUseCase(username, password)
+                when (result) {
                     is Resource.Success -> {
                         val newUser = result.data
                         val userId = newUser?.remoteId
                         if (userId != null) {
                             saveSessionUseCase(userId, username)
                             syncUserDataUseCase(userId)
-                            _uiEffect.send(UserSideEffect.NavigateToProfile)
                         }
-                        resetState()
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                isSuccess = true,
+                                error = null,
+                                usernameError = null,
+                                passwordError = null,
+                                username = "",
+                                password = "",
+                                currentUser = username,
+                                currentUserId = userId
+                            )
+                        }
                     }
                     is Resource.Error -> {
-                        setFieldErrors(result.message ?: "Error desconocido")
+                        setFieldErrors(result.message)
                     }
                     is Resource.Loading -> {
                         _state.update { it.copy(isLoading = true) }
@@ -149,16 +153,28 @@ class UserViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                when (val result = loginUserUseCase(username, password)) {
+                val result = loginUserUseCase(username, password)
+                when (result) {
                     is Resource.Success -> {
                         val loggedInUser = result.data
                         val userId = loggedInUser?.remoteId
                         if (userId != null) {
                             saveSessionUseCase(userId, username)
                             syncUserDataUseCase(userId)
-                            _uiEffect.send(UserSideEffect.NavigateToProfile)
                         }
-                        resetState()
+                        _state.update {
+                            it.copy(
+                                isLoading = false,
+                                isSuccess = true,
+                                error = null,
+                                usernameError = null,
+                                passwordError = null,
+                                username = "",
+                                password = "",
+                                currentUser = username,
+                                currentUserId = userId
+                            )
+                        }
                     }
                     is Resource.Error -> {
                         val errorMessage = result.message ?: "Error desconocido"
@@ -183,30 +199,37 @@ class UserViewModel @Inject constructor(
     }
 
     private fun setFieldErrors(errorMessage: String?) {
-        _state.update { it.copy(isLoading = false) }
-
         errorMessage?.let { message ->
             when {
                 message.contains("usuario", ignoreCase = true) -> {
-                    _state.update { it.copy(usernameError = message) }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            usernameError = message,
+                            passwordError = null
+                        )
+                    }
                 }
                 message.contains("contraseña", ignoreCase = true) -> {
-                    _state.update { it.copy(passwordError = message) }
-                }
-                message.contains("incorrectos", ignoreCase = true) -> {
-                    _state.update { it.copy(error = message) }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            usernameError = null,
+                            passwordError = message
+                        )
+                    }
                 }
                 else -> {
-                    _state.update { it.copy(error = message) }
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            usernameError = null,
+                            passwordError = null,
+                            error = message
+                        )
+                    }
                 }
             }
-        }
-    }
-
-    private fun skipLogin() {
-        _state.update { it.copy(showSkipDialog = false) }
-        viewModelScope.launch {
-            _uiEffect.send(UserSideEffect.NavigateToProfile)
         }
     }
 
@@ -214,17 +237,23 @@ class UserViewModel @Inject constructor(
         viewModelScope.launch {
             clearSessionUseCase()
             clearLocalNotesUseCase()
-            resetState()
-        }
-    }
-
-    private fun resetState() {
-        _state.update {
-            UserState()
+            _state.update {
+                UserState(
+                    username = "",
+                    password = "",
+                    currentUser = "",
+                    currentUserId = null,
+                    isSessionChecked = true
+                )
+            }
         }
     }
 
     private fun clearError() {
         _state.update { it.copy(error = null, usernameError = null, passwordError = null) }
+    }
+
+    private fun clearSuccess() {
+        _state.update { it.copy(isSuccess = false) }
     }
 }

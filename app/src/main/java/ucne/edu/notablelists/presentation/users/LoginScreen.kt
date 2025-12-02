@@ -65,11 +65,17 @@ fun LoginScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(Unit) {
-        viewModel.uiEffect.collect { effect ->
-            when (effect) {
-                is UserSideEffect.NavigateToProfile -> onNavigateToProfile()
-                is UserSideEffect.ShowError -> { }
+    LaunchedEffect(state.currentUser) {
+        if (state.currentUser.isNotBlank()) {
+            onNavigateToProfile()
+        }
+    }
+
+    LaunchedEffect(state.isSuccess) {
+        state.isSuccess?.let { success ->
+            if (success) {
+                onNavigateToProfile()
+                viewModel.onEvent(UserEvent.ClearSuccess)
             }
         }
     }
@@ -82,7 +88,10 @@ fun LoginScreen(
             text = { Text("Si usas la aplicación sin iniciar sesión podrías perder tus notas.") },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.onEvent(UserEvent.SkipLogin) },
+                    onClick = {
+                        viewModel.onEvent(UserEvent.DismissSkipDialog)
+                        onNavigateToProfile()
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
