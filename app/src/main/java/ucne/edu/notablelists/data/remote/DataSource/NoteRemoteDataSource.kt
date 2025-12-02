@@ -42,6 +42,20 @@ class NoteRemoteDataSource @Inject constructor(
         }
     }
 
+    suspend fun getUserNoteById(userId: Int, noteId: Int): Resource<NoteResponseDto> {
+        return try {
+            val response = api.getUserNoteById(userId, noteId)
+            if (response.isSuccessful) {
+                response.body()?.let { Resource.Success(it) }
+                    ?: Resource.Error("Respuesta vacía del servidor")
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Error de red")
+        }
+    }
+
     suspend fun createNote(request: NoteRequestDto): Resource<NoteResponseDto> {
         return try {
             val response = api.createNote(request)
