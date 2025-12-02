@@ -46,7 +46,7 @@ class NoteEditViewModel @Inject constructor(
     private val getFriendsUseCase: GetFriendsUseCase,
     private val shareNoteUseCase: ShareNoteUseCase,
     private val getSharedNoteDetailsUseCase: GetSharedNoteDetailsUseCase,
-    private val getRemoteNoteUseCase: GetRemoteNoteUseCase,
+    private val getRemoteUserNoteUseCase: GetRemoteUserNoteUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -77,23 +77,14 @@ class NoteEditViewModel @Inject constructor(
 
     fun onEvent(event: NoteEditEvent) {
         when (event) {
-            is NoteEditEvent.EnteredTitle -> {
-                updateStateAndScheduleSave { it.copy(title = event.value) }
-            }
-            is NoteEditEvent.EnteredDescription -> {
-                updateStateAndScheduleSave { it.copy(description = event.value) }
-            }
-            is NoteEditEvent.EnteredTag -> {
-                updateStateAndScheduleSave { it.copy(tag = event.value) }
-            }
-            is NoteEditEvent.ChangePriority -> {
-                updateStateAndScheduleSave { it.copy(priority = event.value) }
-            }
+            is NoteEditEvent.EnteredTitle -> updateStateAndScheduleSave { it.copy(title = event.value) }
+            is NoteEditEvent.EnteredDescription -> updateStateAndScheduleSave { it.copy(description = event.value) }
+            is NoteEditEvent.EnteredTag -> updateStateAndScheduleSave { it.copy(tag = event.value) }
+            is NoteEditEvent.ChangePriority -> updateStateAndScheduleSave { it.copy(priority = event.value) }
             is NoteEditEvent.SetReminder -> {
                 val localDateTime = getLocalDateTime(event.date, event.timeHour, event.timeMinute)
                 val formattedDate = formatDateTime(localDateTime)
                 val noteId = _state.value.id ?: UUID.randomUUID().toString()
-
                 updateStateAndScheduleSave { it.copy(id = noteId, reminder = formattedDate) }
                 scheduleReminderUseCase(noteId, _state.value.title.ifBlank { "Sin Título" }, localDateTime)
             }
@@ -123,34 +114,18 @@ class NoteEditViewModel @Inject constructor(
                     it.copy(checklist = updatedList)
                 }
             }
-            is NoteEditEvent.ToggleFinished -> {
-                updateStateAndScheduleSave { it.copy(isFinished = event.isFinished) }
-            }
-            is NoteEditEvent.ShowDeleteDialog -> {
-                _state.update { it.copy(showDeleteDialog = true) }
-            }
-            is NoteEditEvent.DismissDeleteDialog -> {
-                _state.update { it.copy(showDeleteDialog = false) }
-            }
-            is NoteEditEvent.DeleteNote -> {
-                handleDeleteAction()
-            }
-            is NoteEditEvent.OnBackClick -> {
-                saveNoteAndExit()
-            }
+            is NoteEditEvent.ToggleFinished -> updateStateAndScheduleSave { it.copy(isFinished = event.isFinished) }
+            is NoteEditEvent.ShowDeleteDialog -> _state.update { it.copy(showDeleteDialog = true) }
+            is NoteEditEvent.DismissDeleteDialog -> _state.update { it.copy(showDeleteDialog = false) }
+            is NoteEditEvent.DeleteNote -> handleDeleteAction()
+            is NoteEditEvent.OnBackClick -> saveNoteAndExit()
             is NoteEditEvent.ClearReminder -> {
                 _state.value.id?.let { cancelReminderUseCase(it) }
                 updateStateAndScheduleSave { it.copy(reminder = null) }
             }
-            is NoteEditEvent.ShowTagSheet -> {
-                _state.update { it.copy(isTagSheetOpen = true) }
-            }
-            is NoteEditEvent.HideTagSheet -> {
-                _state.update { it.copy(isTagSheetOpen = false) }
-            }
-            is NoteEditEvent.SelectTag -> {
-                updateStateAndScheduleSave { it.copy(tag = event.tag, isTagSheetOpen = false) }
-            }
+            is NoteEditEvent.ShowTagSheet -> _state.update { it.copy(isTagSheetOpen = true) }
+            is NoteEditEvent.HideTagSheet -> _state.update { it.copy(isTagSheetOpen = false) }
+            is NoteEditEvent.SelectTag -> updateStateAndScheduleSave { it.copy(tag = event.tag, isTagSheetOpen = false) }
             is NoteEditEvent.CreateNewTag -> {
                 if (event.tag.isNotBlank()) {
                     val newTags = if (!_state.value.availableTags.contains(event.tag)) {
@@ -158,13 +133,7 @@ class NoteEditViewModel @Inject constructor(
                     } else {
                         _state.value.availableTags
                     }
-                    updateStateAndScheduleSave {
-                        it.copy(
-                            tag = event.tag,
-                            availableTags = newTags,
-                            isTagSheetOpen = false
-                        )
-                    }
+                    updateStateAndScheduleSave { it.copy(tag = event.tag, availableTags = newTags, isTagSheetOpen = false) }
                 }
             }
             is NoteEditEvent.DeleteAvailableTag -> {
@@ -174,19 +143,9 @@ class NoteEditViewModel @Inject constructor(
                     it.copy(availableTags = newTags, tag = currentTag)
                 }
             }
-            is NoteEditEvent.OnShareClick -> {
-                checkShareRequirements()
-            }
-            is NoteEditEvent.DismissShareDialogs -> {
-                _state.update {
-                    it.copy(
-                        showLoginRequiredDialog = false,
-                        showNoFriendsDialog = false,
-                        showShareSheet = false,
-                        errorMessage = null,
-                        successMessage = null
-                    )
-                }
+            is NoteEditEvent.OnShareClick -> checkShareRequirements()
+            is NoteEditEvent.DismissShareDialogs -> _state.update {
+                it.copy(showLoginRequiredDialog = false, showNoFriendsDialog = false, showShareSheet = false, errorMessage = null, successMessage = null)
             }
             is NoteEditEvent.NavigateToLogin -> {
                 _state.update { it.copy(showLoginRequiredDialog = false) }
@@ -196,9 +155,7 @@ class NoteEditViewModel @Inject constructor(
                 _state.update { it.copy(showNoFriendsDialog = false) }
                 sendUiEvent(NoteEditUiEvent.NavigateToFriendList)
             }
-            is NoteEditEvent.ShareWithFriend -> {
-                shareNote(event.friendId)
-            }
+            is NoteEditEvent.ShareWithFriend -> shareNote(event.friendId)
         }
     }
 
@@ -211,10 +168,13 @@ class NoteEditViewModel @Inject constructor(
     private fun scheduleAutoSave() {
         autoSaveJob?.cancel()
         autoSaveJob = viewModelScope.launch {
-            delay(1500)
+            delay(2000)
             if (isActive) {
-                saveNoteSilent()
-                isDirty = false
+                try {
+                    saveNoteSilent()
+                } finally {
+                    isDirty = false
+                }
             }
         }
     }
@@ -223,7 +183,11 @@ class NoteEditViewModel @Inject constructor(
         val currentState = _state.value
         if (currentState.id == null) return
 
-        val effectiveOwnerId = currentState.noteOwnerId ?: currentState.currentUserId ?: return
+        val effectiveOwnerId = if (currentState.noteOwnerId != null && currentState.noteOwnerId != 0) {
+            currentState.noteOwnerId
+        } else {
+            currentState.currentUserId
+        } ?: return
 
         val checklistString = serializeChecklist(currentState.checklist)
         val note = Note(
@@ -256,26 +220,23 @@ class NoteEditViewModel @Inject constructor(
                 val remoteId = id.toIntOrNull()
                 if (remoteId != null) {
                     when(val result = getSharedNoteDetailsUseCase(userId, remoteId)) {
-                        is Resource.Success -> {
-                            note = result.data
-                        }
-                        is Resource.Error -> {
-                            _state.update { it.copy(errorMessage = "Error cargando nota compartida: ${result.message}") }
-                        }
+                        is Resource.Success -> note = result.data
+                        is Resource.Error -> _state.update { it.copy(errorMessage = "Error cargando nota compartida: ${result.message}") }
                         else -> {}
                     }
                 }
             }
 
             note?.let { n ->
+                val ownerId = if (n.userId != null && n.userId != 0) n.userId else userId
+                val isOwner = ownerId == userId
+
                 _state.update { state ->
                     val updatedTags = if (n.tag.isNotBlank() && !state.availableTags.contains(n.tag)) {
                         state.availableTags + n.tag
                     } else {
                         state.availableTags
                     }
-
-                    val isOwner = n.userId == userId || n.userId == null
 
                     state.copy(
                         id = n.id,
@@ -290,52 +251,59 @@ class NoteEditViewModel @Inject constructor(
                         availableTags = updatedTags,
                         isLoading = false,
                         isOwner = isOwner,
-                        noteOwnerId = n.userId
+                        noteOwnerId = ownerId
                     )
                 }
 
                 n.remoteId?.let { remoteId ->
-                    startPolling(userId, remoteId)
+                    startPolling(userId, remoteId, isOwner)
                 }
             } ?: _state.update { it.copy(isLoading = false) }
         }
     }
 
-    private fun startPolling(currentUserId: Int, remoteId: Int) {
+    private fun startPolling(currentUserId: Int, remoteId: Int, isOwner: Boolean) {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
             while (isActive) {
                 delay(5000)
                 if (!isDirty) {
-                    fetchLatestRemoteData(currentUserId, remoteId)
+                    fetchLatestRemoteData(currentUserId, remoteId, isOwner)
                 }
             }
         }
     }
 
-    private suspend fun fetchLatestRemoteData(currentUserId: Int, remoteId: Int) {
-        val isOwner = _state.value.isOwner
-
+    private suspend fun fetchLatestRemoteData(currentUserId: Int, remoteId: Int, isOwner: Boolean) {
         val result = if (isOwner) {
-            getRemoteNoteUseCase(remoteId)
+            getRemoteUserNoteUseCase(currentUserId, remoteId)
         } else {
             getSharedNoteDetailsUseCase(currentUserId, remoteId)
         }
 
-        if (result is Resource.Success && !isDirty) {
-            result.data?.let { n ->
-                _state.update { state ->
-                    if (!isDirty) {
+        if (result is Resource.Success) {
+            result.data?.let { remoteNote ->
+                if (!isDirty) {
+                    val currentState = _state.value
+                    val localId = currentState.id ?: UUID.randomUUID().toString()
+                    val noteOwnerId = currentState.noteOwnerId ?: currentUserId
+
+                    val updatedNote = remoteNote.copy(
+                        id = localId,
+                        userId = noteOwnerId,
+                        remoteId = remoteId
+                    )
+                    upsertNoteUseCase(updatedNote, noteOwnerId)
+
+                    _state.update { state ->
                         state.copy(
-                            title = n.title,
-                            description = n.description,
-                            tag = n.tag,
-                            priority = n.priority,
-                            isFinished = n.isFinished,
-                            checklist = parseChecklist(n.checklist)
+                            title = remoteNote.title,
+                            description = remoteNote.description,
+                            tag = remoteNote.tag,
+                            priority = remoteNote.priority,
+                            isFinished = remoteNote.isFinished,
+                            checklist = parseChecklist(remoteNote.checklist)
                         )
-                    } else {
-                        state
                     }
                 }
             }
@@ -424,16 +392,9 @@ class NoteEditViewModel @Inject constructor(
                 if (remoteId != null) {
                     deleteRemoteNoteUseCase(remoteId)
                 }
-                when (val result = deleteNoteUseCase(id)) {
-                    is Resource.Success -> {
-                        _state.update { it.copy(showDeleteDialog = false) }
-                        sendUiEvent(NoteEditUiEvent.NavigateBack)
-                    }
-                    is Resource.Error -> {
-                        _state.update { it.copy(errorMessage = result.message, showDeleteDialog = false) }
-                    }
-                    else -> {}
-                }
+                deleteNoteUseCase(id)
+                _state.update { it.copy(showDeleteDialog = false) }
+                sendUiEvent(NoteEditUiEvent.NavigateBack)
             } else {
                 _state.update { it.copy(showDeleteDialog = false) }
                 sendUiEvent(NoteEditUiEvent.NavigateBack)
@@ -453,7 +414,12 @@ class NoteEditViewModel @Inject constructor(
 
             _state.update { it.copy(isLoading = true) }
 
-            val effectiveOwnerId = currentState.noteOwnerId ?: currentState.currentUserId
+            val effectiveOwnerId = if (currentState.noteOwnerId != null && currentState.noteOwnerId != 0) {
+                currentState.noteOwnerId
+            } else {
+                currentState.currentUserId
+            }
+
             val checklistString = serializeChecklist(currentState.checklist)
 
             val note = Note(
