@@ -5,7 +5,6 @@ data class NotesListState(
     val notes: List<NoteUiItem> = emptyList(),
     val filterChips: List<FilterUiItem> = emptyList(),
     val errorMessage: List<String> = emptyList(),
-    val navigateToDetail: List<String?> = emptyList(),
     val searchQuery: String = "",
     val showLogoutDialog: Boolean = false,
     val selectedNoteIds: Set<String> = emptySet(),
