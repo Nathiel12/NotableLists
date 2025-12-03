@@ -107,6 +107,7 @@ fun NotesListScreen(
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    var lastClickTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(state.errorMessage) {
         state.errorMessage.forEach { error ->
@@ -182,7 +183,13 @@ fun NotesListScreen(
             )
 
             ExtendedFloatingActionButton(
-                onClick = { onEvent(NotesListEvent.OnAddNoteClick) },
+                onClick = {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastClickTime > 500) {
+                        lastClickTime = currentTime
+                        onEvent(NotesListEvent.OnAddNoteClick)
+                    }
+                },
                 containerColor = fabContainerColor,
                 contentColor = fabContentColor,
                 shape = RoundedCornerShape(16.dp),
@@ -274,7 +281,13 @@ fun NotesListScreen(
                         NoteItemCard(
                             noteUi = noteUi,
                             isSelectionMode = state.isSelectionMode,
-                            onClick = { onEvent(NotesListEvent.OnNoteClick(noteUi.id)) },
+                            onClick = {
+                                val currentTime = System.currentTimeMillis()
+                                if (currentTime - lastClickTime > 500) {
+                                    lastClickTime = currentTime
+                                    onEvent(NotesListEvent.OnNoteClick(noteUi.id))
+                                }
+                            },
                             onLongClick = { onEvent(NotesListEvent.OnNoteLongClick(noteUi.id)) }
                         )
                     }
