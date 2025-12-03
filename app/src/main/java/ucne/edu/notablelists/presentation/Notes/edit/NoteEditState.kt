@@ -15,21 +15,26 @@ data class NoteEditState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
-    val isNoteSaved: Boolean = false,
-    val showDeleteDialog: Boolean = false,
-    val isTagSheetOpen: Boolean = false,
     val availableTags: List<String> = listOf("Personal", "Trabajo", "Estudio", "Ideas", "Urgente"),
+    val friends: List<Friend> = emptyList(),
+    val collaborators: List<Collaborator> = emptyList(),
     val isOwner: Boolean = true,
     val noteOwnerId: Int? = null,
     val currentUserId: Int? = null,
-    val showLoginRequiredDialog: Boolean = false,
-    val showNoFriendsDialog: Boolean = false,
-    val showShareSheet: Boolean = false,
-    val friends: List<Friend> = emptyList(),
-    val collaborators: List<Collaborator> = emptyList(),
+    val isTagSheetVisible: Boolean = false,
+    val isShareSheetVisible: Boolean = false,
+    val isDeleteDialogVisible: Boolean = false,
+    val isLoginRequiredDialogVisible: Boolean = false,
+    val isNoFriendsDialogVisible: Boolean = false,
     val isCollaboratorMenuExpanded: Boolean = false,
     val collaboratorPendingRemoval: Collaborator? = null
 )
+
+sealed interface NoteEditSideEffect {
+    data object NavigateBack : NoteEditSideEffect
+    data object NavigateToLogin : NoteEditSideEffect
+    data object NavigateToFriends : NoteEditSideEffect
+}
 
 data class ChecklistItem(
     val text: String,
