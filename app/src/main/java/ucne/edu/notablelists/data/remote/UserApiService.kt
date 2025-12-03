@@ -43,6 +43,18 @@ interface UserApiService {
         @Path("friendshipId") friendshipId: Int
     ): Response<Unit>
 
+    @DELETE("api/Users/{userId}/pending-requests/{friendshipId}")
+    suspend fun declineFriendRequest(
+        @Path("userId") userId: Int,
+        @Path("friendshipId") friendshipId: Int
+    ): Response<Unit>
+
     @GET("api/Users/{userId}/friends")
     suspend fun getFriends(@Path("userId") userId: Int): Response<List<FriendDto>>
+
+    @DELETE("api/Users/{userId}/friends/{friendId}")
+    suspend fun removeFriend(
+        @Path("userId") userId: Int,
+        @Path("friendId") friendId: Int
+    ): Response<Unit>
 }

@@ -3,12 +3,14 @@ package ucne.edu.notablelists.data.mappers
 import ucne.edu.notablelists.data.local.Notes.NoteEntity
 import ucne.edu.notablelists.data.remote.dto.NoteRequestDto
 import ucne.edu.notablelists.data.remote.dto.NoteResponseDto
+import ucne.edu.notablelists.data.remote.dto.SharedNoteWithDetailsDto
 import ucne.edu.notablelists.domain.notes.model.Note
 import java.util.UUID
 
 fun NoteEntity.toDomain(): Note = Note(
     id = id,
     remoteId = remoteId,
+    userId = userId,
     title = title,
     description = description,
     tag = tag,
@@ -16,14 +18,13 @@ fun NoteEntity.toDomain(): Note = Note(
     reminder = reminder,
     checklist = checklist,
     priority = priority,
-    deleteAt = deleteAt,
-    autoDelete = autoDelete,
-    isPendingCreate = isPendingCreate,
+    isPendingCreate = isPendingCreate
 )
 
 fun Note.toEntity(): NoteEntity = NoteEntity(
     id = id,
     remoteId = remoteId,
+    userId = userId,
     title = title,
     description = description,
     tag = tag,
@@ -31,14 +32,13 @@ fun Note.toEntity(): NoteEntity = NoteEntity(
     reminder = reminder,
     checklist = checklist,
     priority = priority,
-    deleteAt = deleteAt,
-    autoDelete = autoDelete,
-    isPendingCreate = isPendingCreate,
+    isPendingCreate = isPendingCreate
 )
 
 fun NoteResponseDto.toEntity(): NoteEntity = NoteEntity(
     id = UUID.randomUUID().toString(),
     remoteId = noteId,
+    userId = userId,
     title = title,
     description = description,
     tag = tag,
@@ -46,9 +46,7 @@ fun NoteResponseDto.toEntity(): NoteEntity = NoteEntity(
     reminder = reminder,
     checklist = checklist,
     priority = priority,
-    deleteAt = deleteAt,
-    autoDelete = autoDelete,
-    isPendingCreate = false,
+    isPendingCreate = false
 )
 
 fun NoteEntity.toRequest(): NoteRequestDto = NoteRequestDto(
@@ -56,11 +54,10 @@ fun NoteEntity.toRequest(): NoteRequestDto = NoteRequestDto(
     description = description,
     tag = tag,
     isFinished = isFinished,
-    reminder = reminder,
-    checklist = checklist,
+    reminder = reminder.orEmpty(),
+    checklist = checklist.orEmpty(),
     priority = priority,
-    deleteAt = deleteAt,
-    autoDelete = autoDelete
+    userId = userId
 )
 
 fun Note.toRequest(): NoteRequestDto = NoteRequestDto(
@@ -68,9 +65,36 @@ fun Note.toRequest(): NoteRequestDto = NoteRequestDto(
     description = description,
     tag = tag,
     isFinished = isFinished,
+    reminder = reminder.orEmpty(),
+    checklist = checklist.orEmpty(),
+    priority = priority,
+    userId = userId
+)
+
+fun NoteResponseDto.toDomain(): Note = Note(
+    id = UUID.randomUUID().toString(),
+    remoteId = noteId,
+    userId = userId,
+    title = title,
+    description = description,
+    tag = tag,
+    isFinished = isFinished,
     reminder = reminder,
     checklist = checklist,
     priority = priority,
-    deleteAt = deleteAt,
-    autoDelete = autoDelete
+    isPendingCreate = false
+)
+
+fun SharedNoteWithDetailsDto.toDomainNote(): Note = Note(
+    id = this.noteId.toString(),
+    remoteId = this.noteId,
+    userId = this.ownerUserId,
+    title = this.noteTitle,
+    description = this.noteDescription ?: "",
+    tag = this.tag ?: "",
+    priority = this.priority,
+    isFinished = this.isFinished,
+    reminder = this.reminder,
+    checklist = this.checklist,
+    isPendingCreate = false
 )

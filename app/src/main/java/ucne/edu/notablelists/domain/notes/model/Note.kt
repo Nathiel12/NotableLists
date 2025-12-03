@@ -5,6 +5,7 @@ import java.util.UUID
 data class Note(
     val id: String = UUID.randomUUID().toString(),
     val remoteId: Int? = null,
+    val userId: Int? = null,
     val title: String,
     val description: String,
     val tag: String,
@@ -12,7 +13,5 @@ data class Note(
     val reminder: String?,
     val checklist: String?,
     val priority: Int,
-    val deleteAt: String?,
-    val autoDelete: Boolean = false,
     val isPendingCreate: Boolean = false
 )

@@ -11,6 +11,19 @@ import javax.inject.Inject
 class UserRemoteDataSource @Inject constructor(
     private val api: UserApiService
 ) {
+    suspend fun getAllUsers(): Resource<List<UserResponseDto>> {
+        return try {
+            val response = api.getUsers()
+            if (response.isSuccessful) {
+                response.body()?.let { Resource.Success(it) }
+                    ?: Resource.Error("Empty response from server")
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Network error")
+        }
+    }
 
     suspend fun createUser(request: UserRequestDto): Resource<UserResponseDto> {
         return try {
@@ -97,6 +110,31 @@ class UserRemoteDataSource @Inject constructor(
             if (response.isSuccessful) {
                 response.body()?.let { Resource.Success(it) }
                     ?: Resource.Error("Respuesta vacía del servidor")
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Error de red")
+        }
+    }
+
+    suspend fun removeFriend(userId: Int, friendId: Int): Resource<Unit> {
+        return try {
+            val response = api.removeFriend(userId, friendId)
+            if (response.isSuccessful) {
+                Resource.Success(Unit)
+            } else {
+                Resource.Error("HTTP ${response.code()} ${response.message()}")
+            }
+        } catch (e: Exception) {
+            Resource.Error(e.localizedMessage ?: "Error de red")
+        }
+    }
+    suspend fun declineFriendRequest(userId: Int, friendshipId: Int): Resource<Unit> {
+        return try {
+            val response = api.declineFriendRequest(userId, friendshipId)
+            if (response.isSuccessful) {
+                Resource.Success(Unit)
             } else {
                 Resource.Error("HTTP ${response.code()} ${response.message()}")
             }
