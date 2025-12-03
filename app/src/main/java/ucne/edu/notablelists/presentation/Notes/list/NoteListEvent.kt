@@ -11,7 +11,6 @@ sealed interface NotesListEvent {
     data object OnAddNoteClick : NotesListEvent
     data class OnSearchQueryChange(val query: String) : NotesListEvent
     data class OnFilterChange(val filter: NoteFilter) : NotesListEvent
-    data object OnNavigationHandled : NotesListEvent
     data object OnShowLogoutDialog : NotesListEvent
     data object OnDismissLogoutDialog : NotesListEvent
     data object OnDeleteSelectedNotes : NotesListEvent
@@ -20,11 +19,16 @@ sealed interface NotesListEvent {
     data object OnClearSelection : NotesListEvent
 }
 
+sealed interface NotesListUiEvent {
+    data class NavigateToDetail(val noteId: String?) : NotesListUiEvent
+}
+
 enum class NoteFilter(val label: String) {
     AZ("A-Z"),
     ZA("Z-A"),
     DATE("Reciente"),
     HIGH_PRIORITY("Alta"),
     MEDIUM_PRIORITY("Media"),
-    LOW_PRIORITY("Baja")
+    LOW_PRIORITY("Baja"),
+    SHARED("Compartidas")
 }
