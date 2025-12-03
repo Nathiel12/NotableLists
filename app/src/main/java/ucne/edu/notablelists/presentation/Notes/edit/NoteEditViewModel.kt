@@ -504,8 +504,13 @@ class NoteEditViewModel @Inject constructor(
 
     private fun saveNoteAndExit() {
         viewModelScope.launch {
-            autoSaveJob?.cancel()
             val currentState = _state.value
+
+            if (currentState.isLoading) {
+                return@launch
+            }
+
+            autoSaveJob?.cancel()
 
             if (currentState.title.isBlank() && currentState.description.isBlank() && currentState.checklist.isEmpty()) {
                 sendUiEvent(NoteEditUiEvent.NavigateBack)

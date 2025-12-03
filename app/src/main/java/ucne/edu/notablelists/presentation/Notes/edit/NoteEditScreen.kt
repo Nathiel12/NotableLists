@@ -10,6 +10,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -60,6 +61,7 @@ fun NoteEditScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var isMenuExpanded by remember { mutableStateOf(false) }
+    var isProcessingClick by remember { mutableStateOf(false) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -75,6 +77,13 @@ fun NoteEditScreen(
         onResult = {}
     )
 
+    val onBackAction = {
+        if (!isProcessingClick && !state.isLoading) {
+            isProcessingClick = true
+            viewModel.onEvent(NoteEditEvent.OnBackClick)
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -85,6 +94,7 @@ fun NoteEditScreen(
         state.errorMessage?.let { error ->
             snackbarHostState.showSnackbar(error)
             viewModel.onEvent(NoteEditEvent.DismissShareDialogs)
+            isProcessingClick = false
         }
     }
 
@@ -95,8 +105,8 @@ fun NoteEditScreen(
         }
     }
 
-    BackHandler {
-        viewModel.onEvent(NoteEditEvent.OnBackClick)
+    BackHandler(enabled = !isProcessingClick && !state.isLoading) {
+        onBackAction()
     }
 
     LaunchedEffect(key1 = true) {
@@ -278,7 +288,10 @@ fun NoteEditScreen(
             TopAppBar(
                 title = {},
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.onEvent(NoteEditEvent.OnBackClick) }) {
+                    IconButton(
+                        onClick = onBackAction,
+                        enabled = !isProcessingClick && !state.isLoading
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
@@ -383,97 +396,119 @@ fun NoteEditScreen(
             )
         },
         floatingActionButton = {
-            FabMenu(
-                expanded = isMenuExpanded,
-                onToggle = { isMenuExpanded = !isMenuExpanded },
-                onPriorityClick = {
-                    val nextPriority = (state.priority + 1) % 3
-                    viewModel.onEvent(NoteEditEvent.ChangePriority(nextPriority))
-                    isMenuExpanded = false
-                },
-                onReminderClick = {
-                    pickerContext = PickerContext.REMINDER
-                    showDatePicker = true
-                    isMenuExpanded = false
-                },
-                onChecklistClick = {
-                    viewModel.onEvent(NoteEditEvent.AddChecklistItem)
-                    isMenuExpanded = false
-                },
-                onTagClick = {
-                    viewModel.onEvent(NoteEditEvent.ShowTagSheet)
-                    isMenuExpanded = false
-                },
-                onShareClick = {
-                    viewModel.onEvent(NoteEditEvent.OnShareClick)
-                    isMenuExpanded = false
-                },
-                onDeleteClick = {
-                    viewModel.onEvent(NoteEditEvent.ShowDeleteDialog)
-                    isMenuExpanded = false
-                },
-                isOwner = state.isOwner
-            )
+            if (!state.isLoading) {
+                FabMenu(
+                    expanded = isMenuExpanded,
+                    onToggle = { isMenuExpanded = !isMenuExpanded },
+                    onPriorityClick = {
+                        val nextPriority = (state.priority + 1) % 3
+                        viewModel.onEvent(NoteEditEvent.ChangePriority(nextPriority))
+                        isMenuExpanded = false
+                    },
+                    onReminderClick = {
+                        pickerContext = PickerContext.REMINDER
+                        showDatePicker = true
+                        isMenuExpanded = false
+                    },
+                    onChecklistClick = {
+                        viewModel.onEvent(NoteEditEvent.AddChecklistItem)
+                        isMenuExpanded = false
+                    },
+                    onTagClick = {
+                        viewModel.onEvent(NoteEditEvent.ShowTagSheet)
+                        isMenuExpanded = false
+                    },
+                    onShareClick = {
+                        viewModel.onEvent(NoteEditEvent.OnShareClick)
+                        isMenuExpanded = false
+                    },
+                    onDeleteClick = {
+                        viewModel.onEvent(NoteEditEvent.ShowDeleteDialog)
+                        isMenuExpanded = false
+                    },
+                    isOwner = state.isOwner
+                )
+            }
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            TransparentHintTextField(
-                text = state.title,
-                hint = "Título",
-                onValueChange = { viewModel.onEvent(NoteEditEvent.EnteredTitle(it)) },
-                textStyle = MaterialTheme.typography.displaySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                singleLine = false,
-                modifier = Modifier.fillMaxWidth()
-            )
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                TransparentHintTextField(
+                    text = state.title,
+                    hint = "Título",
+                    onValueChange = { viewModel.onEvent(NoteEditEvent.EnteredTitle(it)) },
+                    textStyle = MaterialTheme.typography.displaySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            FlowRowChips(
-                state = state,
-                onRemoveReminder = { viewModel.onEvent(NoteEditEvent.ClearReminder) },
-                onRemoveTag = { viewModel.onEvent(NoteEditEvent.EnteredTag("")) }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (state.checklist.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.checklist.forEachIndexed { index, item ->
-                        ChecklistItemRow(
-                            item = item,
-                            onTextChange = { viewModel.onEvent(NoteEditEvent.UpdateChecklistItem(index, it)) },
-                            onToggle = { viewModel.onEvent(NoteEditEvent.ToggleChecklistItem(index)) },
-                            onRemove = { viewModel.onEvent(NoteEditEvent.RemoveChecklistItem(index)) }
-                        )
-                    }
-                    TextButton(onClick = { viewModel.onEvent(NoteEditEvent.AddChecklistItem) }) {
-                        Text("+ Añadir")
-                    }
-                }
                 Spacer(modifier = Modifier.height(16.dp))
+
+                FlowRowChips(
+                    state = state,
+                    onRemoveReminder = { viewModel.onEvent(NoteEditEvent.ClearReminder) },
+                    onRemoveTag = { viewModel.onEvent(NoteEditEvent.EnteredTag("")) }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (state.checklist.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.checklist.forEachIndexed { index, item ->
+                            ChecklistItemRow(
+                                item = item,
+                                onTextChange = { viewModel.onEvent(NoteEditEvent.UpdateChecklistItem(index, it)) },
+                                onToggle = { viewModel.onEvent(NoteEditEvent.ToggleChecklistItem(index)) },
+                                onRemove = { viewModel.onEvent(NoteEditEvent.RemoveChecklistItem(index)) }
+                            )
+                        }
+                        TextButton(onClick = { viewModel.onEvent(NoteEditEvent.AddChecklistItem) }) {
+                            Text("+ Añadir")
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                TransparentHintTextField(
+                    text = state.description,
+                    hint = "Escribe algo...",
+                    onValueChange = { viewModel.onEvent(NoteEditEvent.EnteredDescription(it)) },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        lineHeight = 24.sp
+                    ),
+                    singleLine = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                Spacer(modifier = Modifier.height(100.dp))
             }
 
-            TransparentHintTextField(
-                text = state.description,
-                hint = "Escribe algo...",
-                onValueChange = { viewModel.onEvent(NoteEditEvent.EnteredDescription(it)) },
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                    lineHeight = 24.sp
-                ),
-                singleLine = false,
-                modifier = Modifier.fillMaxSize()
-            )
-
-            Spacer(modifier = Modifier.height(100.dp))
+            if (state.isLoading || isProcessingClick) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.05f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                            onClick = { }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
         }
     }
 }
@@ -835,7 +870,9 @@ fun ChipInfo(
         shape = CircleShape
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).clickable { onDelete?.invoke() },
+            modifier = Modifier
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .clickable { onDelete?.invoke() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
