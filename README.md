@@ -16,5 +16,6 @@ Crea notas desde cualquier lugar, desde cualquier dispositivo y ¡compartelas co
 - Jetpack Compose
 - Kotlin
 
+Demonstración: https://youtu.be/hJqVZdMoNco
 
 Desarrollado por Victor Ferreiras y Nathiel Taveras, presentado a Enel Almonte
