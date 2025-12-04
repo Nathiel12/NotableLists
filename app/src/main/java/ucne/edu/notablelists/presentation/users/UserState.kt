@@ -14,5 +14,11 @@ data class UserState(
     val usernameError: String? = null,
     val passwordError: String? = null,
     val showSkipDialog: Boolean = false,
-    val isSessionChecked: Boolean = false
+    val isSessionChecked: Boolean = false,
+    val navigationEvent: UserSideEffect? = null
 )
+
+sealed interface UserSideEffect {
+    data object NavigateToProfile : UserSideEffect
+    data object NavigateToLogin : UserSideEffect
+}
