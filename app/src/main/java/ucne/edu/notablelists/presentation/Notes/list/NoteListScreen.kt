@@ -616,7 +616,7 @@ fun NoteItemCard(
                     }
 
                     noteUi.tags.forEach { tag ->
-                        val (_, tContent) = tag.style.getColors()
+                        val (_) = tag.style.getColors()
                         MetaDataChip(
                             text = tag.label,
                             icon = Icons.Default.Label,
