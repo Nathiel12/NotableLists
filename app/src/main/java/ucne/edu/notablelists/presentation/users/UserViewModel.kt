@@ -61,6 +61,7 @@ class UserViewModel @Inject constructor(
             is UserEvent.PasswordChanged -> passwordChanged(event.value)
             UserEvent.ShowSkipDialog -> _state.update { it.copy(showSkipDialog = true) }
             UserEvent.DismissSkipDialog -> _state.update { it.copy(showSkipDialog = false) }
+            UserEvent.NavigationHandled -> _state.update { it.copy(navigationEvent = null) }
         }
     }
 
@@ -117,7 +118,8 @@ class UserViewModel @Inject constructor(
                                 username = "",
                                 password = "",
                                 currentUser = username,
-                                currentUserId = userId
+                                currentUserId = userId,
+                                navigationEvent = UserSideEffect.NavigateToProfile
                             )
                         }
                     }
@@ -172,7 +174,8 @@ class UserViewModel @Inject constructor(
                                 username = "",
                                 password = "",
                                 currentUser = username,
-                                currentUserId = userId
+                                currentUserId = userId,
+                                navigationEvent = UserSideEffect.NavigateToProfile
                             )
                         }
                     }
@@ -243,7 +246,8 @@ class UserViewModel @Inject constructor(
                     password = "",
                     currentUser = "",
                     currentUserId = null,
-                    isSessionChecked = true
+                    isSessionChecked = true,
+                    navigationEvent = UserSideEffect.NavigateToLogin
                 )
             }
         }
