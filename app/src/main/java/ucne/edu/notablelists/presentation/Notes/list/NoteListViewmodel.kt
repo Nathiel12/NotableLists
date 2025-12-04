@@ -175,7 +175,9 @@ class NotesListViewModel @Inject constructor(
                 try {
                     checkPendingRequests(userId)
                     fetchSharedNotes(userId)
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
